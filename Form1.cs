@@ -11,9 +11,8 @@ namespace DirectoryViewer
     public class MainForm : Form
     {
         private readonly Stack<string> navigationStack = new Stack<string>();
-        private ListView listView;
+        private FlowLayoutPanel flowPanel;
         private Button backButton;
-        private ImageList imageList;
 
         // SHGetFileInfo constants.
         private const uint SHGFI_ICON = 0x100;
@@ -25,7 +24,14 @@ namespace DirectoryViewer
         {
             // Enable DPI scaling.
             this.AutoScaleMode = AutoScaleMode.Dpi;
-            
+            // Modern look.
+            this.BackColor = Color.White;
+            this.Font = new Font("Segoe UI", 11);
+            // Start full screen.
+            this.WindowState = FormWindowState.Maximized;
+            // Optional: if you prefer a borderless full screen uncomment the following line.
+            // this.FormBorderStyle = FormBorderStyle.None;
+
             navigationStack.Push(initialDirectory);
             InitializeComponents();
             LoadDirectory(initialDirectory);
@@ -34,69 +40,66 @@ namespace DirectoryViewer
         private void InitializeComponents()
         {
             this.Text = "Directory Viewer";
-            this.Width = 800;
-            this.Height = 600;
 
-            // Back button.
+            // Create a Back button at the top.
             backButton = new Button
             {
                 Text = "Back",
-                Location = new Point(10, 10)
+                Location = new Point(10, 10),
+                Size = new Size(100, 40),
+                Font = new Font("Segoe UI", 11),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(0, 120, 215),
+                ForeColor = Color.White
             };
+            backButton.FlatAppearance.BorderSize = 0;
             backButton.Click += BackButton_Click;
             this.Controls.Add(backButton);
 
-            // ListView in List view mode (similar to Explorer's list view).
-            listView = new ListView
+            // Create a FlowLayoutPanel to host item buttons.
+            flowPanel = new FlowLayoutPanel
             {
-                Location = new Point(10, 50),
-                Width = this.ClientSize.Width - 20,
-                Height = this.ClientSize.Height - 60,
+                Location = new Point(10, 60),
+                Size = new Size(this.ClientSize.Width - 20, this.ClientSize.Height - 70),
                 Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
-                View = View.List
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                AutoScroll = true,
+                BackColor = Color.White
             };
-            listView.DoubleClick += ListView_DoubleClick;
-            this.Controls.Add(listView);
+            flowPanel.Resize += FlowPanel_Resize;
+            this.Controls.Add(flowPanel);
+        }
 
-            // ImageList for small icons (16x16).
-            imageList = new ImageList { ImageSize = new Size(16, 16) };
-            listView.SmallImageList = imageList;
+        private void FlowPanel_Resize(object sender, EventArgs e)
+        {
+            // Update the width of each button so they span the full width.
+            foreach (Control ctrl in flowPanel.Controls)
+            {
+                ctrl.Width = flowPanel.ClientSize.Width - 20; // 20-pixel margin.
+            }
         }
 
         private void LoadDirectory(string path)
         {
-            // Show only the current directory's name in the title.
+            // Set the title to show only the folder's name.
             this.Text = "Directory Viewer - " + GetDirectoryDisplayName(path);
-            listView.Items.Clear();
-            imageList.Images.Clear();
+            flowPanel.Controls.Clear();
 
-            int imageIndex = 0;
             try
             {
-                // Add subdirectories.
+                // Add subdirectory buttons.
                 foreach (var dir in Directory.GetDirectories(path))
                 {
-                    Icon icon = GetFolderIcon();
-                    imageList.Images.Add(icon);
-                    var item = new ListViewItem(Path.GetFileName(dir), imageIndex)
-                    {
-                        Tag = dir
-                    };
-                    listView.Items.Add(item);
-                    imageIndex++;
+                    Button btn = CreateItemButton(Path.GetFileName(dir), dir, isDirectory: true);
+                    flowPanel.Controls.Add(btn);
                 }
 
-                // Add files.
+                // Add file buttons.
                 foreach (var file in Directory.GetFiles(path))
                 {
-                    Icon icon = GetIconForFile(file);
-                    imageList.Images.Add(icon);
-                    var item = new ListViewItem(Path.GetFileName(file), imageIndex)
-                    {
-                        Tag = file
-                    };
-                    listView.Items.Add(item);
-                    imageIndex++;
+                    Button btn = CreateItemButton(Path.GetFileName(file), file, isDirectory: false);
+                    flowPanel.Controls.Add(btn);
                 }
             }
             catch (Exception ex)
@@ -105,28 +108,39 @@ namespace DirectoryViewer
             }
         }
 
-        // Updated helper: use DirectoryInfo to return the folder name.
-        private string GetDirectoryDisplayName(string path)
+        // Creates a button representing a file or folder.
+        private Button CreateItemButton(string text, string fullPath, bool isDirectory)
         {
-            return new DirectoryInfo(path).Name;
+            Button btn = new Button();
+            btn.Text = "   " + text; // add some padding before the text.
+            btn.Tag = fullPath;
+            btn.Font = new Font("Segoe UI", 11);
+            btn.TextAlign = ContentAlignment.MiddleLeft;
+            btn.ImageAlign = ContentAlignment.MiddleLeft;
+            btn.Padding = new Padding(10, 0, 0, 0);
+            btn.Height = 50;
+            btn.FlatStyle = FlatStyle.Flat;
+            // Set borders for a modern look.
+            btn.FlatAppearance.BorderSize = 1;
+            btn.FlatAppearance.BorderColor = Color.LightGray;
+            btn.BackColor = Color.White;
+            btn.ForeColor = Color.Black;
+
+            // Get icon for the item.
+            Icon icon = isDirectory ? GetFolderIcon() : GetIconForFile(fullPath);
+            if (icon != null)
+                btn.Image = icon.ToBitmap();
+
+            btn.Click += ItemButton_Click;
+            // Set the button width to span the container.
+            btn.Width = flowPanel.ClientSize.Width - 20;
+            return btn;
         }
 
-        private void BackButton_Click(object sender, EventArgs e)
+        private void ItemButton_Click(object sender, EventArgs e)
         {
-            if (navigationStack.Count > 1)
-            {
-                navigationStack.Pop();
-                string previous = navigationStack.Peek();
-                LoadDirectory(previous);
-            }
-        }
-
-        private void ListView_DoubleClick(object sender, EventArgs e)
-        {
-            if (listView.SelectedItems.Count == 0)
-                return;
-
-            string path = listView.SelectedItems[0].Tag as string;
+            Button btn = sender as Button;
+            string path = btn.Tag as string;
             if (Directory.Exists(path))
             {
                 navigationStack.Push(path);
@@ -142,6 +156,22 @@ namespace DirectoryViewer
                 {
                     MessageBox.Show("Error opening file: " + ex.Message);
                 }
+            }
+        }
+
+        // Returns only the folder's name.
+        private string GetDirectoryDisplayName(string path)
+        {
+            return new DirectoryInfo(path).Name;
+        }
+
+        private void BackButton_Click(object sender, EventArgs e)
+        {
+            if (navigationStack.Count > 1)
+            {
+                navigationStack.Pop();
+                string previous = navigationStack.Peek();
+                LoadDirectory(previous);
             }
         }
 
