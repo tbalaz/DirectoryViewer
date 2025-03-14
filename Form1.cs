@@ -29,8 +29,6 @@ namespace DirectoryViewer
             this.Font = new Font("Segoe UI", 11);
             // Start full screen.
             this.WindowState = FormWindowState.Maximized;
-            // Optional: if you prefer a borderless full screen uncomment the following line.
-            // this.FormBorderStyle = FormBorderStyle.None;
 
             navigationStack.Push(initialDirectory);
             InitializeComponents();
@@ -112,7 +110,8 @@ namespace DirectoryViewer
         private Button CreateItemButton(string text, string fullPath, bool isDirectory)
         {
             Button btn = new Button();
-            btn.Text = "   " + text; // add some padding before the text.
+            // Extra spaces added between icon and text.
+            btn.Text = "    " + text; // Four spaces before text.
             btn.Tag = fullPath;
             btn.Font = new Font("Segoe UI", 11);
             btn.TextAlign = ContentAlignment.MiddleLeft;
